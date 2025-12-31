@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Relay Master 〜公平リレーチーム作成〜</title>
+<style>
+  /* --- 基本スタイル (Tailwindライクなデザイン) --- */
+  :root {
+    --primary: #2563eb; /* blue-600 */
+    --primary-hover: #1d4ed8;
+    --bg-color: #f9fafb; /* gray-50 */
+    --text-color: #1f2937; /* gray-800 */
+    --border-color: #e5e7eb; /* gray-200 */
+    --white: #ffffff;
+    --male-bg: #cffafe; --male-text: #164e63; /* cyan */
+    --female-bg: #fce7f3; --female-text: #831843; /* pink */
+    --unknown-bg: #f3f4f6; --unknown-text: #111827;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    padding-bottom: 80px; /* フッター分 */
+    user-select: none;
+  }
+  
+  /* --- レイアウト --- */
+  .header {
+    background-color: var(--primary);
+    color: var(--white);
+    padding: 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .header h1 { margin: 0; font-size: 1.125rem; display: flex; align-items: center; gap: 0.5rem; }
+  
+  .container { max-width: 28rem; margin: 0 auto; padding: 1rem; }
+  .section { display: none; animation: fadeIn 0.3s ease-in-out; }
+  .section.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* --- UIコンポーネント --- */
+  .card {
+    background-color: var(--white);
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--border-color);
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  
+  .btn {
+    width: 100%;
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+    transition: background-color 0.2s;
+    font-size: 1rem;
+  }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background-color: var(--primary); color: var(--white); }
+  .btn-primary:hover { background-color: var(--primary-hover); }
+  .btn-green { background-color: #16a34a; color: white; }
+  .btn-orange { background-color: #f97316; color: white; }
+  .btn-gray { background-color: #e5e7eb; color: #374151; }
+  .btn-outline { background-color: transparent; border: 1px solid var(--primary); color: var(--primary); padding: 0.25rem 0.5rem; font-size: 0.875rem; width: auto;}
+
+  .input-field {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.25rem;
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+  }
+  textarea.input-field { height: 10rem; font-family: monospace; font-size: 0.875rem; }
+
+  /* --- タブナビゲーション --- */
+  .nav-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background-color: var(--white);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-around;
+    padding: 0.5rem 0;
+    padding-bottom: env(safe-area-inset-bottom, 0.5rem);
+    z-index: 100;
+    box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.05);
+  }
+  .nav-item {
+    background: none; border: none;
+    display: flex; flex-direction: column; align-items: center;
+    color: #9ca3af; font-size: 0.65rem;
+    width: 4rem; cursor: pointer;
+  }
+  .nav-item.active { color: var(--primary); font-weight: bold; }
+  .nav-item svg { width: 24px; height: 24px; margin-bottom: 2px; }
+
+  /* --- メンバーチップ --- */
+  .chip-container {
+    display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: center;
+    max-height: 8rem; overflow-y: auto; align-content: flex-start;
+  }
+  .chip-area {
+    background-color: #f9fafb;
+    border: 2px dashed #d1d5db;
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    min-height: 3rem;
+    margin-bottom: 0.5rem;
+  }
+  .member-chip {
+    display: flex; align-items: center; gap: 0.25rem;
+    padding: 0.125rem 0.375rem;
+    border-radius: 0.25rem;
+    border: 1px solid rgba(0,0,0,0.1);
+    font-size: 0.625rem; /* 10px */
+    cursor: pointer;
+    transition: transform 0.1s;
+  }
+  .member-chip:active { transform: scale(0.95); }
+  .member-chip.male { background-color: var(--male-bg); color: var(--male-text); }
+  .member-chip.female { background-color: var(--female-bg); color: var(--female-text); }
+  .member-chip.unknown { background-color: var(--unknown-bg); color: var(--unknown-text); }
+  .member-chip.selected { box-shadow: 0 0 0 2px var(--primary); }
+  
+  .chip-name { font-weight: bold; max-width: 4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip-time { opacity: 0.8; font-family: monospace; border-left: 1px solid rgba(0,0,0,0.2); padding-left: 0.25rem; }
+  .chip-label { background: rgba(0,0,0,0.1); padding: 0 2px; border-radius: 2px; font-size: 8px; }
+
+  /* --- チーム表示 --- */
+  .team-card {
+    background: var(--white);
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    border: 1px solid var(--border-color);
+    margin-bottom: 1rem;
+    overflow: hidden;
+  }
+  .team-header {
+    background: #f3f4f6; padding: 0.5rem 0.75rem;
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--border-color);
+  }
+  .team-scroll {
+    overflow-x: auto; padding: 0.5rem;
+    display: flex; gap: 0.25rem;
+  }
+  .runner-card {
+    flex-shrink: 0; width: 3.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    padding: 0.25rem;
+    display: flex; flex-direction: column; align-items: center;
+    background: var(--white);
+    position: relative;
+    cursor: pointer;
+  }
+  .runner-card.selected { border-color: #facc15; box-shadow: 0 0 0 2px #facc15; transform: scale(1.05); z-index: 10; }
+  .runner-card.double { border-color: #f87171; box-shadow: inset 0 0 0 1px #fecaca; }
+  .runner-order { font-size: 9px; color: white; padding: 1px 4px; border-radius: 999px; margin-bottom: 2px; }
+  .bg-green { background-color: #22c55e; } .bg-yellow { background-color: #eab308; } .bg-gray { background-color: #9ca3af; }
+  .runner-name { font-size: 10px; width: 100%; text-align: center; font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 2px; padding: 1px 0;}
+  .text-small { font-size: 8px; } .text-tiny { font-size: 7px; transform: scale(0.95); }
+  .runner-time { font-size: 9px; color: #6b7280; font-family: monospace; margin-top: 1px; }
+  .double-mark { position: absolute; top: 0; right: 0; width: 6px; height: 6px; background: red; border-radius: 50%; border: 1px solid white; }
+
+  /* --- 計測画面 --- */
+  .timer-display { font-family: monospace; font-size: 3.5rem; font-weight: bold; text-align: center; margin: 1rem 0; letter-spacing: 0.05em; }
+  .lap-list { max-height: 20rem; overflow-y: auto; border-top: 1px solid var(--border-color); }
+  .lap-row { display: flex; align-items: center; padding: 0.75rem; border-bottom: 1px solid var(--border-color); gap: 0.5rem; }
+  .rank { width: 2rem; text-align: center; font-weight: bold; font-family: monospace; }
+  .rank-1 { color: #ca8a04; font-size: 1.25rem; }
+  .rank-2 { color: #6b7280; }
+  .rank-3 { color: #c2410c; }
+  .lap-time { flex: 1; font-family: monospace; font-size: 1.25rem; font-weight: bold; }
+  .team-select { padding: 0.25rem; border: 1px solid #d1d5db; border-radius: 0.25rem; font-weight: bold; width: 7rem; }
+  .team-select.empty { color: #9ca3af; border-color: #60a5fa; }
+
+  /* --- モーダル --- */
+  .modal-overlay {
+    position: fixed; top:0; left:0; right:0; bottom:0;
+    background: rgba(0,0,0,0.5); z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .modal-overlay.open { opacity: 1; pointer-events: auto; }
+  .modal-content {
+    background: white; padding: 1.5rem; border-radius: 0.5rem;
+    max-width: 90%; width: 20rem;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+  }
+</style>
+</head>
+<body>
+
+  <!-- ヘッダー -->
+  <header class="header">
+    <h1 id="app-title">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
+      Relay Master
+    </h1>
+    <div style="font-size: 0.8rem; opacity: 0.9;" id="class-name-display">1年A組</div>
+  </header>
+
+  <div class="container">
+    
+    <!-- 1. クラス登録画面 -->
+    <div id="tab-register" class="section active">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
+          <label style="font-weight:bold;">クラス名</label>
+          <button class="btn-outline" onclick="showHelp('データ登録', 'Excel等から「氏名」「性別」「タイム」の列をコピーして貼り付けてください。')">?</button>
+        </div>
+        <input type="text" id="class-name-input" class="input-field" value="1年A組" oninput="updateClassName(this.value)">
+      </div>
+
+      <div class="card">
+        <label style="font-weight:bold; display:block; margin-bottom:0.5rem;">データ貼り付け</label>
+        <textarea id="raw-input" class="input-field" placeholder="例:&#13;&#10;佐藤太郎	男	7.5&#13;&#10;田中花子	女	8.1"></textarea>
+        <div style="margin-bottom:1rem;">
+          <span style="font-size:0.75rem; color:#6b7280; text-decoration:underline; cursor:pointer;" onclick="setSampleData()">サンプルを入力</span>
+        </div>
+        <button class="btn btn-primary" onclick="parseInput()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
+          クラスを登録する
+        </button>
+      </div>
+
+      <div class="card" id="member-list-card" style="display:none;">
+        <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
+          <span style="font-weight:bold;">登録済み: <span id="member-count">0</span>名</span>
+          <span style="color:#ef4444; font-size:0.875rem; cursor:pointer;" onclick="clearMembers()">全消去</span>
+        </div>
+        <div id="member-list-preview" style="max-height:10rem; overflow-y:auto; border:1px solid var(--border-color); border-radius:0.25rem; font-size:0.875rem;"></div>
+      </div>
+    </div>
+
+    <!-- 2. チーム分け画面 -->
+    <div id="tab-team" class="section">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; margin-bottom:1rem;">
+          <h2 style="margin:0; font-size:1.125rem; display:flex; align-items:center; gap:0.5rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg> 設定
+          </h2>
+          <button class="btn-outline" onclick="showHelp('チーム分け', '欠席者を選んでボタンを押すだけです。')">?</button>
+        </div>
+        <div style="margin-bottom:1rem;">
+          <label style="font-weight:bold; display:block; margin-bottom:0.25rem;">チーム数</label>
+          <select id="team-count-select" class="input-field">
+            <option value="2">2チーム</option><option value="3">3チーム</option><option value="4" selected>4チーム</option><option value="5">5チーム</option><option value="6">6チーム</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- 欠席者選択 -->
+      <div class="card">
+        <div style="font-weight:bold; font-size:0.875rem; margin-bottom:0.25rem;">1. 欠席・見学者の選択</div>
+        <div style="font-size:0.75rem; color:#6b7280; text-align:center; margin-bottom:0.25rem;">除外者リスト（タップで復帰）</div>
+        <div id="absentees-area" class="chip-container chip-area"></div>
+        
+        <div style="font-size:0.75rem; color:#6b7280; text-align:center; margin:0.5rem 0 0.25rem;">参加予定（タップで欠席へ）</div>
+        <div id="attendees-area" class="chip-container"></div>
+      </div>
+
+      <!-- 2回走る人選択 -->
+      <div class="card">
+        <div style="display:flex; justify-content:space-between;">
+          <div style="font-weight:bold; font-size:0.875rem;">2. 2回走る生徒（希望者優先）</div>
+          <span id="extra-count-badge" style="font-size:0.75rem; background:#e5e7eb; padding:2px 6px; border-radius:4px;">自動計算</span>
+        </div>
+        <div style="font-size:0.75rem; color:#6b7280; text-align:center; margin:0.5rem 0 0.25rem;">2回走る候補（タップで解除）</div>
+        <div id="manual-extra-area" class="chip-container chip-area"></div>
+        <div style="font-size:0.75rem; color:#6b7280; text-align:center; margin:0.5rem 0 0.25rem;">1回走る（タップで候補へ）</div>
+        <div id="single-runner-area" class="chip-container"></div>
+      </div>
+
+      <button class="btn btn-primary" onclick="generateTeams()" style="margin-bottom:1.5rem; padding:1rem;">
+        組み分け開始（シャッフル）
+      </button>
+
+      <div id="teams-result-area" style="display:none;">
+        <div style="text-align:center; font-size:0.875rem; color:#4b5563; background:#fef9c3; padding:0.5rem; border-radius:0.5rem; border:1px solid #fde047; margin-bottom:1rem;">
+          <span style="font-weight:bold;">タップで入れ替え可能</span> (チーム内並べ替え・移動)
+        </div>
+        <div id="teams-container"></div>
+      </div>
+    </div>
+
+    <!-- 3. 計測画面 -->
+    <div id="tab-timer" class="section">
+      <div class="card" style="text-align:center;">
+        <div id="timer-display" class="timer-display">00:00.00</div>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.75rem; margin-bottom:1rem;">
+          <button id="btn-toggle" class="btn btn-green" onclick="toggleTimer()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            スタート
+          </button>
+          <button class="btn btn-gray" onclick="resetTimer()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            リセット
+          </button>
+        </div>
+
+        <button id="btn-record" class="btn btn-gray" onclick="recordLap()" disabled style="padding:1.5rem; font-size:1.25rem;">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
+          ゴール計測
+        </button>
+        <div id="timer-msg" style="font-size:0.75rem; color:#9ca3af; margin-top:0.5rem;">※ チーム数分の記録で自動停止します</div>
+      </div>
+
+      <div id="laps-card" class="card" style="padding:0; overflow:hidden; display:none;">
+        <div style="padding:0.75rem; background:#f3f4f6; font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
+          <span>記録リスト</span>
+          <button class="btn-outline" onclick="copyResults()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> 結果をコピー
+          </button>
+        </div>
+        <div id="laps-list" class="lap-list"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- フッターナビ -->
+  <nav class="nav-bar">
+    <button class="nav-item active" onclick="switchTab('register')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      クラス登録
+    </button>
+    <button class="nav-item" onclick="switchTab('team')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg>
+      チーム分け
+    </button>
+    <button class="nav-item" onclick="switchTab('timer')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
+      計測
+    </button>
+  </nav>
+
+  <!-- ヘルプモーダル -->
+  <div id="help-modal" class="modal-overlay" onclick="closeHelp()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <h3 id="help-title" style="margin-top:0; color:var(--primary); display:flex; align-items:center; gap:0.5rem;"></h3>
+      <div id="help-content" style="font-size:0.875rem; color:#4b5563; white-space:pre-wrap; line-height:1.6;"></div>
+      <button class="btn btn-primary" onclick="closeHelp()" style="margin-top:1rem;">閉じる</button>
+    </div>
+  </div>
+
+<script>
+/* ==========================================================================
+   ロジック部 (Vanilla JS)
+   ========================================================================== */
+
+// --- 状態管理 ---
+let state = {
+  className: '1年A組',
+  members: [], // {id, name, gender, time}
+  absentees: [], // id array
+  manualExtras: [], // id array
+  teamCount: 4,
+  teams: [], // array of member arrays
+  generated: false,
+  swapSource: null, // {teamIndex, memberIndex}
+  
+  // Timer
+  startTime: 0,
+  elapsed: 0,
+  timerInterval: null,
+  isRunning: false,
+  laps: [] // {id, time, teamName}
+};
+
+// --- 初期化 ---
+const SAMPLE_DATA = `佐藤太郎	男	7.5\n田中花子	女	8.1\n鈴木一郎	男	7.2\n高橋美咲	女	8.5\n伊藤健太	男	7.8\n渡辺直美	女	9.0\n山本武	男	6.9\n中村里奈	女	8.3\n小林大輔	男	7.4\n加藤亜美	女	8.8\n吉田拓也	男	7.1\n山田千尋	女	9.2\n佐々木誠	男	7.6\n山口真央	女	8.6\n松本亮	男	7.3\n井上由美	女	8.9\n木村翔太	男	7.7\n林愛	女	8.4\n清水大樹	男	7.0\n山崎優子	女	9.1\n池田蓮	男	7.5\n橋本葵	女	8.7\n阿部奏太	男	7.9\n森田結衣	女	8.2\n石川颯太	男	7.2\n中島美月	女	9.3\n前田陸	男	7.4\n藤田陽菜	女	8.5\n後藤駿	男	6.8\n小川さくら	女	9.0\n村上陽翔	男	7.6\n近藤凛	女	8.8\n岡田悠人	男	7.3\n長谷川彩	女	9.1\n藤井達也	男	7.1`;
+
+// --- タブ切り替え ---
+function switchTab(tabName) {
+  document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
+  document.getElementById(`tab-${tabName}`).classList.add('active');
+  
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  // 単純化のためアイコン色変更のみCSSで制御
+  const btn = document.querySelector(`.nav-item[onclick="switchTab('${tabName}')"]`);
+  if(btn) btn.classList.add('active');
+
+  if (tabName === 'team') renderTeamSettings();
+}
+
+// --- クラス登録ロジック ---
+function updateClassName(val) {
+  state.className = val;
+  document.getElementById('class-name-display').textContent = val;
+}
+
+function setSampleData() {
+  document.getElementById('raw-input').value = SAMPLE_DATA;
+}
+
+function parseInput() {
+  const raw = document.getElementById('raw-input').value;
+  const lines = raw.trim().split(/\n/);
+  const parsed = lines.map((line, index) => {
+    line = line.trim();
+    if (!line) return null;
+    let parts;
+    if (line.includes('\t')) parts = line.split('\t');
+    else if (line.includes(',') || line.includes('、')) parts = line.split(/[,、]/);
+    else parts = line.split(/[\s　]+/);
+    
+    parts = parts.map(p => p.trim()).filter(p => p);
+    if (parts.length < 2) return null;
+    
+    let name = parts[0], gender = '不明', time = 0;
+    parts.forEach(p => {
+      if (['男','女','M','F'].includes(p)) gender = (p==='M'?'男':(p==='F'?'女':p));
+      else if (!isNaN(parseFloat(p)) && isFinite(p)) time = parseFloat(p);
+    });
+    return { id: `m_${Date.now()}_${index}`, name, gender, time };
+  }).filter(Boolean);
+
+  state.members = parsed;
+  state.absentees = [];
+  state.manualExtras = [];
+  renderMemberList();
+  alert(`${parsed.length}人のデータを読み込みました`);
+}
+
+function renderMemberList() {
+  const listEl = document.getElementById('member-list-preview');
+  const countEl = document.getElementById('member-count');
+  const cardEl = document.getElementById('member-list-card');
+  
+  if (state.members.length === 0) {
+    cardEl.style.display = 'none';
+    return;
+  }
+  cardEl.style.display = 'block';
+  countEl.textContent = state.members.length;
+  
+  listEl.innerHTML = state.members.map(m => `
+    <div style="padding:0.5rem; display:flex; justify-content:space-between; border-bottom:1px solid #eee;">
+      <span>${m.name}</span>
+      <span style="color:#6b7280;">${m.gender} / ${m.time}s</span>
+    </div>
+  `).join('');
+}
+
+function clearMembers() {
+  state.members = [];
+  renderMemberList();
+}
+
+// --- チーム分け設定ロジック ---
+function renderTeamSettings() {
+  // チーム数同期
+  const select = document.getElementById('team-count-select');
+  select.value = state.teamCount;
+  select.onchange = (e) => { state.teamCount = Number(e.target.value); renderTeamSettings(); };
+
+  // 1. 欠席者エリア
+  const absArea = document.getElementById('absentees-area');
+  const attArea = document.getElementById('attendees-area');
+  
+  const absMembers = state.members.filter(m => state.absentees.includes(m.id));
+  const attMembers = state.members.filter(m => !state.absentees.includes(m.id));
+
+  absArea.innerHTML = absMembers.length ? absMembers.map(m => createChip(m, 'toggleAbsent', true)).join('') : '<div style="width:100%;text-align:center;font-size:10px;color:#9ca3af;padding:4px;">欠席者なし</div>';
+  attArea.innerHTML = attMembers.map(m => createChip(m, 'toggleAbsent')).join('');
+
+  // 2. 2回走る人エリア
+  const extraArea = document.getElementById('manual-extra-area');
+  const singleArea = document.getElementById('single-runner-area');
+  
+  const extraMembers = attMembers.filter(m => state.manualExtras.includes(m.id));
+  const singleMembers = attMembers.filter(m => !state.manualExtras.includes(m.id));
+  
+  // 必要数計算
+  const activeCount = attMembers.length;
+  const needed = activeCount > 0 ? (Math.ceil(activeCount / state.teamCount) * state.teamCount - activeCount) : 0;
+  
+  const badge = document.getElementById('extra-count-badge');
+  badge.textContent = `${extraMembers.length} / ${needed}人`;
+  badge.className = (extraMembers.length === needed) ? 'bg-green' : 'bg-gray';
+  badge.style.backgroundColor = (extraMembers.length === needed) ? '#dcfce7' : '#f3f4f6';
+  badge.style.color = (extraMembers.length === needed) ? '#166534' : '#374151';
+
+  extraArea.innerHTML = extraMembers.length ? extraMembers.map(m => createChip(m, 'toggleExtra', true)).join('') : '<div style="width:100%;text-align:center;font-size:10px;color:#9ca3af;padding:4px;">指定なし（自動選択）</div>';
+  singleArea.innerHTML = singleMembers.map(m => createChip(m, 'toggleExtra')).join('');
+}
+
+function createChip(member, action, hasLabel=false) {
+  const genderClass = member.gender === '男' ? 'male' : (member.gender === '女' ? 'female' : 'unknown');
+  const labelHtml = hasLabel ? `<span class="chip-label">${action==='toggleAbsent'?'復帰':'解除'}</span>` : '';
+  return `<div class="member-chip ${genderClass}" onclick="${action}('${member.id}')">
+    <span class="chip-name">${member.name}</span>
+    <span class="chip-time">${member.time}</span>
+    ${labelHtml}
+  </div>`;
+}
+
+function toggleAbsent(id) {
+  if (state.absentees.includes(id)) {
+    state.absentees = state.absentees.filter(mid => mid !== id);
+  } else {
+    state.absentees.push(id);
+    state.manualExtras = state.manualExtras.filter(mid => mid !== id);
+  }
+  renderTeamSettings();
+}
+
+function toggleExtra(id) {
+  if (state.manualExtras.includes(id)) {
+    state.manualExtras = state.manualExtras.filter(mid => mid !== id);
+  } else {
+    state.manualExtras.push(id);
+  }
+  renderTeamSettings();
+}
+
+// --- チーム生成アルゴリズム (簡略移植) ---
+function generateTeams() {
+  if (state.members.length === 0) return alert('メンバーがいません');
+  const activeMembers = state.members.filter(m => !state.absentees.includes(m.id));
+  if (activeMembers.length < state.teamCount) return alert('人数不足です');
+
+  // 必要数
+  const totalSlots = Math.ceil(activeMembers.length / state.teamCount) * state.teamCount;
+  const neededExtras = totalSlots - activeMembers.length;
+
+  let doubleRunnerIds = [...state.manualExtras];
+  // 不足分を自動補充
+  if (doubleRunnerIds.length < neededExtras) {
+    const remain = neededExtras - doubleRunnerIds.length;
+    const cands = activeMembers.filter(m => !doubleRunnerIds.includes(m.id)).sort((a,b)=>a.time-b.time);
+    doubleRunnerIds.push(...cands.slice(0, remain).map(m=>m.id));
+  }
+
+  // ユニット化
+  const units = [];
+  const dSet = new Set(doubleRunnerIds);
+  activeMembers.forEach(m => {
+    if (dSet.has(m.id)) {
+      units.push({ slots:2, totalTime: m.time*2, members:[{...m, isDouble:true}, {...m, id:m.id+'_ex', isExtra:true}] });
+    } else {
+      units.push({ slots:1, totalTime: m.time, members:[m] });
+    }
+  });
+
+  // 割り当て
+  const limit = Math.ceil((activeMembers.length + neededExtras)/state.teamCount);
+  const tempTeams = Array.from({length: state.teamCount}, ()=>({units:[], slots:0, total:0}));
+  
+  // Greedy
+  units.sort((a,b) => (b.slots - a.slots) || (a.totalTime - b.totalTime));
+  units.forEach(u => {
+    const cands = tempTeams.map((t,i)=>({t,i})).filter(o => o.t.slots + u.slots <= limit).sort((a,b)=>a.t.total - b.t.total);
+    if(cands.length){
+      // 揺らぎ
+      const pick = (cands.length>1 && Math.random()<0.3) ? 1 : 0;
+      const target = cands[pick].t;
+      target.units.push(u); target.slots+=u.slots; target.total+=u.totalTime;
+    } else {
+      tempTeams.sort((a,b)=>a.slots - b.slots);
+      tempTeams[0].units.push(u); tempTeams[0].slots+=u.slots; tempTeams[0].total+=u.totalTime;
+    }
+  });
+
+  // 最適化 (Swap)
+  for(let i=0; i<3000; i++){
+    const times = tempTeams.map(t=>t.total);
+    const min = Math.min(...times), max = Math.max(...times);
+    if(max - min <= 0.2 * state.teamCount) break;
+
+    let ia, ib;
+    if(Math.random()<0.7) { ia = times.indexOf(max); ib = times.indexOf(min); }
+    else { ia = Math.floor(Math.random()*state.teamCount); ib = Math.floor(Math.random()*state.teamCount); }
+    
+    if(ia===ib || ia===-1 || ib===-1) continue;
+    
+    const ta = tempTeams[ia], tb = tempTeams[ib];
+    if(!ta.units.length || !tb.units.length) continue;
+    
+    const uaIdx = Math.floor(Math.random()*ta.units.length);
+    const ubIdx = Math.floor(Math.random()*tb.units.length);
+    const ua = ta.units[uaIdx], ub = tb.units[ubIdx];
+    
+    if(ua.slots !== ub.slots) continue;
+    
+    const curDiff = Math.abs(ta.total - tb.total);
+    const newA = ta.total - ua.totalTime + ub.totalTime;
+    const newB = tb.total - ub.totalTime + ua.totalTime;
+    const newDiff = Math.abs(newA - newB);
+    
+    if(newDiff < curDiff || Math.random()<0.05) {
+      ta.units[uaIdx] = ub; tb.units[ubIdx] = ua;
+      ta.total = newA; tb.total = newB;
+    }
+  }
+
+  // 展開
+  state.teams = tempTeams.map(t => {
+    let flats = [];
+    t.units.forEach(u => flats.push(...u.members));
+    flats.sort((a,b) => a.time - b.time);
+    
+    // 走順: 2nd -> random -> Anchor
+    const fastest = flats[0];
+    let second = (flats.length>1) ? flats[1] : null;
+    let others = flats.slice(2);
+    // シャッフル
+    for(let k=others.length-1; k>0; k--){
+      const j=Math.floor(Math.random()*(k+1));
+      [others[k], others[j]] = [others[j], others[k]];
+    }
+    
+    const ordered = [];
+    if(second) ordered.push(second);
+    else if(fastest && flats.length===1) ordered.push(fastest);
+    ordered.push(...others);
+    if(flats.length>1) ordered.push(fastest);
+    return ordered;
+  });
+
+  state.generated = true;
+  state.swapSource = null;
+  renderTeams();
+}
+
+function renderTeams() {
+  const container = document.getElementById('teams-result-area');
+  const list = document.getElementById('teams-container');
+  container.style.display = 'block';
+  
+  list.innerHTML = state.teams.map((team, tIdx) => {
+    const totalT = team.reduce((s,c)=>s+c.time,0);
+    const avg = (totalT/team.length).toFixed(2);
+    const tName = String.fromCharCode(65+tIdx) + 'チーム';
+    
+    const membersHtml = team.map((m, mIdx) => {
+      const isAnchor = mIdx === team.length-1;
+      const isFirst = mIdx === 0;
+      const orderTxt = isFirst ? '1走' : (isAnchor ? 'ｱﾝｶｰ' : (mIdx+1)+'走');
+      const badgeColor = isFirst ? 'bg-green' : (isAnchor ? 'bg-yellow' : 'bg-gray');
+      
+      const isSel = state.swapSource && state.swapSource.teamIndex === tIdx && state.swapSource.memberIndex === mIdx;
+      const selClass = isSel ? 'selected' : '';
+      const dblClass = m.isExtra || m.isDouble ? 'double' : '';
+      const genderClass = GENDER_COLORS[m.gender].replace('bg-', 'bg-light-').replace('text-', 'text-dark-'); // 簡易
+      // CSS変数を直接使う
+      const bg = m.gender==='男'?'#cffafe':(m.gender==='女'?'#fce7f3':'#f3f4f6');
+      const col = m.gender==='男'?'#164e63':(m.gender==='女'?'#831843':'#111827');
+      const dblMark = (m.isExtra || m.isDouble) ? '<div class="double-mark"></div>' : '';
+      
+      // 文字サイズ
+      let fsClass = 'text-[10px]';
+      if(m.name.length > 6) fsClass = 'text-tiny';
+      else if(m.name.length > 4) fsClass = 'text-small';
+
+      return `
+      <div class="runner-card ${selClass} ${dblClass}" onclick="handleCardClick(${tIdx}, ${mIdx})">
+        <span class="runner-order ${badgeColor}">${orderTxt}</span>
+        <div class="runner-name ${fsClass}" style="background:${bg}; color:${col};">${m.name}</div>
+        <div class="runner-time">${m.time}</div>
+        ${dblMark}
+      </div>`;
+    }).join('');
+
+    return `
+    <div class="team-card">
+      <div class="team-header">
+        <div style="font-weight:bold; font-size:1.125rem;">${tName}</div>
+        <div style="text-align:right;">
+          <div style="background:white; border:1px solid #e5e7eb; border-radius:4px; padding:2px 6px; font-size:0.75rem; font-weight:bold;">平均 ${avg}秒</div>
+          <div style="font-size:0.6rem; color:#6b7280;">合計 ${totalT.toFixed(1)}s</div>
+        </div>
+      </div>
+      <div class="team-scroll">${membersHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function handleCardClick(tIdx, mIdx) {
+  if (!state.swapSource) {
+    state.swapSource = {teamIndex: tIdx, memberIndex: mIdx};
+  } else {
+    const s = state.swapSource;
+    if(s.teamIndex === tIdx && s.memberIndex === mIdx) {
+      state.swapSource = null; // cancel
+    } else {
+      // Swap
+      const tmA = [...state.teams[s.teamIndex]];
+      const tmB = [...state.teams[tIdx]];
+      
+      if (s.teamIndex === tIdx) {
+        [tmA[s.memberIndex], tmA[mIdx]] = [tmA[mIdx], tmA[s.memberIndex]];
+        state.teams[tIdx] = tmA;
+      } else {
+        const memA = tmA[s.memberIndex];
+        const memB = tmB[mIdx];
+        tmA[s.memberIndex] = memB;
+        tmB[mIdx] = memA;
+        state.teams[s.teamIndex] = tmA;
+        state.teams[tIdx] = tmB;
+      }
+      state.swapSource = null;
+    }
+  }
+  renderTeams();
+}
+
+// --- タイマーロジック ---
+function formatTimeDisp(ms) {
+  const m = Math.floor(ms/60000);
+  const s = Math.floor((ms%60000)/1000);
+  const ms2 = Math.floor((ms%1000)/10);
+  return (m>0?m+':':'') + (s<10?'0':'')+s + '.' + (ms2<10?'0':'')+ms2;
+}
+
+function updateTimerDisplay() {
+  document.getElementById('timer-display').textContent = formatTimeDisp(state.elapsed);
+}
+
+function toggleTimer() {
+  const btn = document.getElementById('btn-toggle');
+  const rec = document.getElementById('btn-record');
+  
+  if (state.isRunning) {
+    // Stop
+    clearInterval(state.timerInterval);
+    state.isRunning = false;
+    btn.className = 'btn btn-green';
+    btn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> スタート';
+    rec.className = 'btn btn-gray';
+    rec.disabled = true;
+  } else {
+    // Start
+    const start = Date.now() - state.elapsed;
+    state.timerInterval = setInterval(()=>{
+      state.elapsed = Date.now() - start;
+      updateTimerDisplay();
+    }, 10);
+    state.isRunning = true;
+    btn.className = 'btn btn-orange';
+    btn.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> ストップ';
+    
+    // 計測可能か判定
+    if(state.laps.length < state.teamCount) {
+      rec.className = 'btn btn-primary';
+      rec.disabled = false;
+      rec.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg> ゴール計測';
+    }
+  }
+}
+
+function resetTimer() {
+  if(state.isRunning) toggleTimer();
+  state.elapsed = 0;
+  state.laps = [];
+  updateTimerDisplay();
+  document.getElementById('laps-card').style.display = 'none';
+  document.getElementById('timer-msg').style.display = 'block';
+  document.getElementById('btn-record').innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg> ゴール計測';
+}
+
+function recordLap() {
+  const newLap = { id: Date.now(), time: state.elapsed, teamName: '' };
+  state.laps.push(newLap);
+  renderLaps();
+  
+  if(state.laps.length >= state.teamCount) {
+    toggleTimer(); // Stop
+    const rec = document.getElementById('btn-record');
+    rec.disabled = true;
+    rec.textContent = '計測完了';
+    rec.className = 'btn btn-gray';
+  }
+}
+
+function renderLaps() {
+  const card = document.getElementById('laps-card');
+  card.style.display = 'block';
+  document.getElementById('timer-msg').style.display = 'none';
+  
+  const list = document.getElementById('laps-list');
+  // 使用済みチーム
+  const used = new Set(state.laps.map(l=>l.teamName).filter(n=>n));
+  
+  // チーム名候補
+  let options = [];
+  if(state.generated) {
+    options = state.teams.map((_,i)=>String.fromCharCode(65+i)+'チーム');
+  } else {
+    options = ['A','B','C','D','E','F'].slice(0, state.teamCount).map(n=>n+'チーム');
+  }
+
+  list.innerHTML = state.laps.map((lap, idx) => {
+    const rankColor = idx===0?'#ca8a04':(idx===1?'#6b7280':(idx===2?'#c2410c':'#9ca3af'));
+    const rankSize = idx===0?'1.25rem':'1rem';
+    
+    // Select生成
+    let selectHtml = `<select class="team-select ${!lap.teamName?'empty':''}" onchange="updateLapTeam(${idx}, this.value)">`;
+    selectHtml += '<option value="">チーム選択</option>';
+    options.forEach(opt => {
+      if(!used.has(opt) || opt===lap.teamName) {
+        selectHtml += `<option value="${opt}" ${opt===lap.teamName?'selected':''}>${opt}</option>`;
+      }
+    });
+    selectHtml += '</select>';
+
+    return `
+    <div class="lap-row">
+      <div class="rank" style="color:${rankColor}; font-size:${rankSize};">${idx+1}</div>
+      <div class="lap-time">${formatTimeDisp(lap.time)}</div>
+      ${selectHtml}
+    </div>`;
+  }).join('');
+}
+
+function updateLapTeam(idx, val) {
+  state.laps[idx].teamName = val;
+  renderLaps(); // 再描画して選択肢を更新
+}
+
+function copyResults() {
+  let text = "【チーム走順】\n";
+  const maxR = state.teams.reduce((max,t)=>Math.max(max,t.length),0);
+  
+  text += "チーム名\t平均タイム";
+  for(let i=0; i<maxR; i++) text += (i===maxR-1) ? "\tアンカー" : `\t${i+1}走`;
+  text += "\n";
+  
+  state.teams.forEach((t, i)=>{
+    const tn = String.fromCharCode(65+i)+'チーム';
+    const tot = t.reduce((s,c)=>s+c.time,0);
+    const avg = t.length>0 ? (tot/t.length).toFixed(2) : "0.00";
+    const mems = t.map(m=>m.name+(m.isExtra||m.isDouble?'(再)':'')).join('\t');
+    text += `${tn}\t${avg}\t${mems}\n`;
+  });
+  
+  text += "\n【計測結果】\n順位\tチーム名\tタイム\n";
+  state.laps.forEach((l, i)=>{
+    text += `${i+1}\t${l.teamName||'(未選択)'}\t${formatTimeDisp(l.time)}\n`;
+  });
+  
+  // Copy
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    alert('コピーしました');
+  } catch(e) {
+    alert('コピー失敗');
+  }
+  document.body.removeChild(ta);
+}
+
+// --- ヘルプ ---
+function showHelp(title, content) {
+  document.getElementById('help-title').innerHTML = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg> ${title}`;
+  document.getElementById('help-content').textContent = content;
+  document.getElementById('help-modal').classList.add('open');
+}
+function closeHelp() {
+  document.getElementById('help-modal').classList.remove('open');
+}
+
+// 初期化
+updateTimerDisplay();
+</script>
+</body>
+</html>
