@@ -263,7 +263,7 @@
 
       <div class="card">
         <label style="font-weight:bold; display:block; margin-bottom:0.5rem;">データ貼り付け</label>
-        <textarea id="raw-input" class="input-field" placeholder="例:&#13;&#10;佐藤太郎	男	7.5&#13;&#10;田中花子	女	8.1"></textarea>
+        <textarea id="raw-input" class="input-field" placeholder="例:&#13;&#10;佐藤太郎	男	7.5&#13;&#10;田中花子	女	8.1" oninput="updateRawInput(this.value)"></textarea>
         <div style="margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
           <span style="font-size:0.75rem; color:#6b7280; text-decoration:underline; cursor:pointer;" onclick="setSampleData()">サンプルを入力</span>
           <span style="font-size:0.75rem; color:#ef4444; text-decoration:underline; cursor:pointer;" onclick="clearInput()">入力クリア</span>
@@ -411,6 +411,8 @@ const STORAGE_KEY = 'relay_master_state_v2';
 // --- 状態管理 ---
 let state = {
   className: '1年A組',
+  rawInput: '', // 入力途中の生テキストを永続化
+  currentTab: 'register', // 現在開いているタブを永続化
   members: [], 
   absentees: [], 
   manualExtras: [], 
@@ -428,8 +430,7 @@ let state = {
 // 一時的なUI状態（保存しない）
 let uiState = {
   swapSource: null, // {teamIndex, memberIndex}
-  timerIntervalId: null,
-  currentTab: 'register'
+  timerIntervalId: null
 };
 
 const SAMPLE_DATA = `佐藤太郎	男	7.5\n田中花子	女	8.1\n鈴木一郎	男	7.2\n高橋美咲	女	8.5\n伊藤健太	男	7.8\n渡辺直美	女	9.0\n山本武	男	6.9\n中村里奈	女	8.3\n小林大輔	男	7.4\n加藤亜美	女	8.8\n吉田拓也	男	7.1\n山田千尋	女	9.2\n佐々木誠	男	7.6\n山口真央	女	8.6\n松本亮	男	7.3\n井上由美	女	8.9\n木村翔太	男	7.7\n林愛	女	8.4\n清水大樹	男	7.0\n山崎優子	女	9.1\n池田蓮	男	7.5\n橋本葵	女	8.7\n阿部奏太	男	7.9\n森田結衣	女	8.2\n石川颯太	男	7.2\n中島美月	女	9.3\n前田陸	男	7.4\n藤田陽菜	女	8.5\n後藤駿	男	6.8\n小川さくら	女	9.0\n村上陽翔	男	7.6\n近藤凛	女	8.8\n岡田悠人	男	7.3\n長谷川彩	女	9.1\n藤井達也	男	7.1`;
@@ -458,8 +459,12 @@ function loadState() {
 // --- 初期化処理 ---
 function init() {
   loadState();
+  
+  // UIへのデータ流し込み（復元）
   document.getElementById('class-name-input').value = state.className;
   updateClassName(state.className);
+  
+  document.getElementById('raw-input').value = state.rawInput;
   
   if (state.members.length > 0) renderMemberList();
   if (state.generated) renderTeams();
@@ -475,12 +480,15 @@ function init() {
   }
   if (state.laps.length > 0) renderLaps();
 
-  switchTab(uiState.currentTab);
+  // 前回開いていたタブを復元
+  switchTab(state.currentTab);
 }
 
 // --- タブ切り替え ---
 function switchTab(tabName) {
-  uiState.currentTab = tabName;
+  state.currentTab = tabName;
+  saveState();
+
   document.querySelectorAll('.section').forEach(el => el.classList.remove('active'));
   document.getElementById(`tab-${tabName}`).classList.add('active');
   
@@ -497,12 +505,20 @@ function updateClassName(val) {
   saveState();
 }
 
+// 入力中のテキストを随時保存
+function updateRawInput(val) {
+  state.rawInput = val;
+  saveState();
+}
+
 function setSampleData() {
   document.getElementById('raw-input').value = SAMPLE_DATA;
+  updateRawInput(SAMPLE_DATA);
 }
 
 function clearInput() {
   document.getElementById('raw-input').value = '';
+  updateRawInput('');
 }
 
 function parseInput() {
@@ -572,7 +588,7 @@ function clearMembers() {
   state.generated = false;
   state.teams = [];
   renderMemberList();
-  document.getElementById('raw-input').value = '';
+  clearInput(); // テキストエリアと保存データもクリア
   saveState();
 }
 
